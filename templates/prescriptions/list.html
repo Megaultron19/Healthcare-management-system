@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, badge, pagination, empty with context %}
+{% block title %}Prescriptions · {% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Prescriptions</h1>
+    <p class="muted">{{ page.total }} prescription{{ '' if page.total == 1 else 's' }}</p>
+  </div>
+</div>
+
+<form class="toolbar" method="get">
+  <div class="search">{{ icon('search') }}<input type="search" name="q" value="{{ filters.q }}" placeholder="Medication or patient name" aria-label="Search prescriptions"></div>
+  <select name="status" aria-label="Status">
+    <option value="">All statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-ghost" type="submit">Filter</button>
+  {% if filters.q or filters.status %}<a class="link" href="{{ url_for('records.prescriptions') }}">Clear</a>{% endif %}
+</form>
+
+<div class="card">
+  {% if page.items %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Medication</th><th>Patient</th><th>Dosage</th><th>Prescribed</th><th>Refills</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for rx in page.items %}
+      <tr>
+        <td><strong>{{ rx.medication }}</strong><small class="muted block">{{ rx.doctor.full_name }}</small></td>
+        <td><a href="{{ url_for('patients.detail', patient_id=rx.patient_id) }}#prescriptions">{{ rx.patient.full_name }}</a></td>
+        <td>{{ rx.dosage }}<small class="muted block">{{ rx.frequency }}{% if rx.duration %} · {{ rx.duration }}{% endif %}</small></td>
+        <td class="nowrap">{{ rx.prescribed_on.strftime('%d %b %Y') }}</td>
+        <td>{{ rx.refills }}</td>
+        <td>{{ badge(rx.status) }}</td>
+        <td class="right"><a class="btn btn-ghost btn-sm" href="{{ url_for('records.edit_prescription', prescription_id=rx.id) }}">{{ icon('edit') }}<span>Edit</span></a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ pagination(page, 'records.prescriptions') }}
+  {% else %}
+    {{ empty("No prescriptions found. Prescriptions are written from a patient's page.") }}
+  {% endif %}
+</div>
+{% endblock %}

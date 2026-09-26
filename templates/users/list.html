@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon with context %}
+{% block title %}Users · {% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Users</h1>
+    <p class="muted">Admins can manage doctors, users and delete records. Staff can add and edit patients, visits, prescriptions and appointments.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('auth.new_user') }}">{{ icon('plus') }} Add user</a>
+</div>
+<div class="card">
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><strong>{{ u.name }}</strong>{% if u.id == current_user.id %} <span class="muted">(you)</span>{% endif %}</td>
+        <td>{{ u.email }}</td>
+        <td><span class="badge badge-{{ 'info' if u.role == 'admin' else 'neutral' }}">{{ u.role|title }}</span></td>
+        <td>{% if u.active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-cancelled">Deactivated</span>{% endif %}</td>
+        <td class="right"><a class="btn btn-ghost btn-sm" href="{{ url_for('auth.edit_user', user_id=u.id) }}">{{ icon('edit') }}<span>Edit</span></a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, badge, empty with context %}
+{% block title %}Dashboard · {% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Welcome back, {{ current_user.name.split(' ')[0] }}</h1>
+    <p class="muted">Here's what's happening at the clinic today.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('patients.new') }}">{{ icon('plus') }} New patient</a>
+    <a class="btn btn-primary" href="{{ url_for('appointments.new') }}">{{ icon('calendar') }} Book appointment</a>
+  </div>
+</div>
+
+<div class="stats">
+  <a class="stat" href="{{ url_for('patients.index') }}">
+    <span class="stat-icon tone-blue">{{ icon('users') }}</span>
+    <div><div class="stat-value">{{ stats.patients }}</div><div class="stat-label">Patients</div></div>
+  </a>
+  <a class="stat" href="{{ url_for('appointments.index', date=today.isoformat()) }}">
+    <span class="stat-icon tone-teal">{{ icon('calendar') }}</span>
+    <div><div class="stat-value">{{ stats.today }}</div><div class="stat-label">Appointments today</div></div>
+  </a>
+  <a class="stat" href="{{ url_for('doctors.index') }}">
+    <span class="stat-icon tone-violet">{{ icon('stethoscope') }}</span>
+    <div><div class="stat-value">{{ stats.doctors }}</div><div class="stat-label">Active doctors</div></div>
+  </a>
+  <a class="stat" href="{{ url_for('records.prescriptions', status='Active') }}">
+    <span class="stat-icon tone-amber">{{ icon('pill') }}</span>
+    <div><div class="stat-value">{{ stats.prescriptions }}</div><div class="stat-label">Active prescriptions</div></div>
+  </a>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head">
+      <h2>Today's schedule</h2>
+      <a class="link" href="{{ url_for('appointments.index', date=today.isoformat()) }}">View all</a>
+    </div>
+    {% if todays %}
+    <ul class="timeline">
+      {% for a in todays %}
+      <li>
+        <span class="time">{{ a.time.strftime('%H:%M') }}</span>
+        <div class="tl-body">
+          <a href="{{ url_for('patients.detail', patient_id=a.patient_id) }}"><strong>{{ a.patient.full_name }}</strong></a>
+          <small class="muted">{{ a.doctor.full_name }}{% if a.reason %} · {{ a.reason }}{% endif %}</small>
+        </div>
+        {% if a.status == 'Scheduled' %}
+        <form method="post" action="{{ url_for('appointments.set_status', appointment_id=a.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="status" value="Completed">
+          <input type="hidden" name="next" value="{{ url_for('dashboard.index') }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Mark done</button>
+        </form>
+        {% else %}{{ badge(a.status) }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      {{ empty("No appointments today.", url_for('appointments.new'), 'Book one') }}
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Next 7 days</h2></div>
+    {% if upcoming %}
+    <ul class="list">
+      {% for a in upcoming %}
+      <li>
+        <div>
+          <a href="{{ url_for('patients.detail', patient_id=a.patient_id) }}"><strong>{{ a.patient.full_name }}</strong></a>
+          <small class="muted">{{ a.doctor.full_name }}</small>
+        </div>
+        <span class="muted nowrap">{{ a.date.strftime('%a %d %b') }}, {{ a.time.strftime('%H:%M') }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted pad">Nothing booked for the coming week.</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Follow-ups due (14 days)</h2></div>
+    {% if follow_ups %}
+    <ul class="list">
+      {% for r in follow_ups %}
+      <li>
+        <div>
+          <a href="{{ url_for('patients.detail', patient_id=r.patient_id) }}"><strong>{{ r.patient.full_name }}</strong></a>
+          <small class="muted">{{ r.diagnosis or r.chief_complaint or 'Visit' }} · {{ r.doctor.full_name }}</small>
+        </div>
+        <a class="btn btn-ghost btn-sm nowrap" href="{{ url_for('appointments.new', patient_id=r.patient_id, doctor_id=r.doctor_id, date=r.follow_up_date.isoformat()) }}">Book {{ r.follow_up_date.strftime('%d %b') }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted pad">No follow-ups due.</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Recently added patients</h2>
+      <a class="link" href="{{ url_for('patients.index') }}">All patients</a>
+    </div>
+    {% if recent_patients %}
+    <ul class="list">
+      {% for p in recent_patients %}
+      <li>
+        <div>
+          <a href="{{ url_for('patients.detail', patient_id=p.id) }}"><strong>{{ p.full_name }}</strong></a>
+          <small class="muted">{{ p.gender }}, {{ p.age }} yrs{% if p.phone %} · {{ p.phone }}{% endif %}</small>
+        </div>
+        <span class="muted">#{{ p.id }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      {{ empty("No patients yet.", url_for('patients.new'), 'Add a patient') }}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

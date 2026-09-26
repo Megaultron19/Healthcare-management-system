@@ -1,244 +1,143 @@
-**Healthcare Management System**
+# Clinic Manager — Healthcare Management System
+
+A complete web application for clinics to manage **patients, doctors, appointments, visit records and prescriptions**. Built with Python (Flask) and SQLAlchemy, it runs on **Neon Postgres** in the cloud or a local **SQLite** file with zero setup, and deploys to **Vercel** in a few clicks.
+
+## Features
+
+**Dashboard**
+- Live counts: patients, today's appointments, active doctors, active prescriptions
+- Today's schedule with one-click “Mark done”
+- Appointments for the next 7 days
+- Follow-ups due in the next 14 days, with one-click booking
+
+**Patients**
+- Add, edit, delete and search (name, phone, email or `#ID`)
+- Full profile: demographics, blood group, allergies (highlighted in red), emergency contact, notes
+- Per-patient tabs for visits, prescriptions and appointments
+
+**Visit records**
+- Complaint, symptoms, diagnosis, treatment and notes
+- Vitals: BP, temperature, pulse, SpO₂, weight
+- Follow-up date, and prescribing directly from a visit
+
+**Prescriptions**
+- Medication, dosage, frequency, duration, quantity and refills
+- Status: Active, Completed or Discontinued
+- Clinic-wide list with search and status filter
+
+**Appointments**
+- Book, reschedule and cancel
+- Status: Scheduled, Completed, Cancelled or No-Show, changeable straight from the list
+- Double-booking protection for both doctors and patients
+- Filter by date, doctor, status or patient name
+
+**Doctors**
+- Profiles with specialization, department and contact details
+- Upcoming appointments and recent visits
+- Deactivate a doctor to hide them from booking while keeping their history
+
+**Users and security**
+- Sign-in with hashed passwords
+- Two roles: **Admin** manages doctors and users and can delete records; **Staff** handles day-to-day work
+- CSRF protection on every form
+- Secure cookies in production
+- First-run setup page that creates the initial admin
+
+**Responsive UI**
+- Works on desktop, tablet and phone, with a collapsible sidebar on small screens
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.10+, Flask 3, Flask-Login, Flask-WTF |
+| Database | SQLAlchemy 2 with **Neon Postgres** (online) or **SQLite** (local) |
+| Frontend | Server-rendered Jinja templates with custom CSS and a little vanilla JS (no build step) |
+| Hosting | Vercel (Python runtime) |
+
+## Run it locally
+
+```bash
+git clone https://github.com/Megaultron19/healthcare-management-system.git
+cd healthcare-management-system
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+flask --app app seed               # optional: load demo doctors, patients and appointments
+python app.py                      # open http://localhost:5000
+```
+
+With no `DATABASE_URL` set, data is stored in `instance/healthcare.db` (SQLite). The first time you open the app it asks you to **create the administrator account**.
+
+To use your Neon database locally instead, set `DATABASE_URL` before running:
+
+```bash
+export DATABASE_URL="postgresql://USER:PASSWORD@ep-xxxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require"
+```
+
+## Deploy to Vercel with Neon
+
+1. **Push this repository to GitHub**, then in Vercel choose **Add New → Project** and import it. Vercel detects Flask automatically, so no build settings are needed.
+2. **Create the database:** in the Vercel project open **Storage → Create Database → Neon (Serverless Postgres)** and connect it to the project. This adds `DATABASE_URL` to the project's environment variables. Alternatively, create a project at [neon.tech](https://neon.tech) and add its **pooled** connection string as `DATABASE_URL` yourself.
+3. **Add a secret key:** under **Settings → Environment Variables**, add `SECRET_KEY`. Generate one with:
+   ```bash
+   python -c "import secrets; print(secrets.token_hex(32))"
+   ```
+4. **Optional variables:**
+   - `APP_NAME`: your clinic or brand name, shown in the sidebar and page titles
+   - `TIMEZONE`: the clinic's timezone, e.g. `Asia/Kolkata`. Set this because Vercel servers run on UTC, and "today" should mean the clinic's today.
+5. **Deploy** (or redeploy after adding variables), open the site and create your admin account.
+
+Tables are created automatically on first start. To load demo data into Neon, run `flask --app app seed` locally with `DATABASE_URL` pointing at Neon.
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `SECRET_KEY` | In production | Signs sessions and CSRF tokens. The app refuses to start on Vercel without it. |
+| `DATABASE_URL` | In production | Postgres connection string (`POSTGRES_URL` is also accepted). Falls back to SQLite locally. |
+| `APP_NAME` | No | Display name. Default: `Clinic Manager`. |
+| `TIMEZONE` | No | IANA timezone, e.g. `Asia/Kolkata`. Default: the server's local time. |
 
-A comprehensive healthcare management system built with Flask and MySQL for managing patient records, appointments, prescriptions, and medical history with a user-friendly web interface.
+See `.env.example`.
 
-🚀 Features 
+## Management commands
 
-👨‍⚕️ Doctor Management
+```bash
+flask --app app init-db        # create tables (also happens automatically on start)
+flask --app app create-admin   # create an admin from the terminal
+flask --app app seed           # load demo data into an empty database
+```
 
-1.View all doctors
+## Tests
 
-2.Search doctors by ID
+```bash
+pip install -r requirements-dev.txt
+pytest                                   # runs against in-memory SQLite
+TEST_DATABASE_URL=postgresql+psycopg2://user:pass@localhost/test_db pytest   # against Postgres
+```
 
-3.Filter doctors by specialization
+## Project structure
 
-4.Complete doctor profiles with contact information
+```
+app.py                  # entry point (used by Vercel and `python app.py`)
+healthcare/
+  __init__.py           # app factory and configuration
+  models.py             # database tables
+  forms.py              # form definitions and validation
+  auth.py               # sign-in, setup, users, password change
+  dashboard.py, patients.py, doctors.py, appointments.py, records.py
+  cli.py                # init-db / create-admin / seed commands
+templates/              # HTML pages
+public/static/          # CSS, JS, favicon (served by Vercel's CDN)
+tests/                  # automated tests
+```
 
+## Before using with real patients
 
-👥 Patient Management
+This software handles medical information. Before using it with real patient data or selling it, make sure the deployment meets the health-data laws of the market you sell into, for example HIPAA (US), GDPR (EU/UK) or India's DPDP Act. Typical requirements are a signed data-processing agreement with your hosting and database providers, regular backups, access logging, and strong passwords for every user.
 
-1.Search patients by ID
+## Author
 
-2.Find patients by last name
-
-3.Comprehensive patient profiles with medical information
-
-4.Emergency contact details and allergy tracking
-
-
-📋 Medical History
-
-1.Complete patient medical history tracking
-
-2.Visit records with detailed diagnosis and symptoms
-
-3.Vital signs storage (JSON format)
-
-4.Treatment and medication tracking
-
-5.Doctor-patient visit relationships
-
-
-💊 Prescription Management
-
-1.Patient-specific prescription tracking
-
-2.Medication details with dosage and frequency
-
-3.Prescription status monitoring (Active/Completed/Discontinued)
-
-4.Refill tracking and instructions
-
-📅 Appointment System
-
-1.Patient appointment scheduling
-
-2.Appointment status tracking (Scheduled/Completed/Cancelled/No-Show)
-
-3.Date-based appointment viewing
-
-4.Doctor-patient appointment relationships
-
-🛠️ Tech Stack
-
-1.Backend: Python Flask
-
-2.Database: MySQL
-
-3.Frontend: HTML, CSS, JavaScript
-
-4.Database Connector: mysql-connector-python
-
-
-📋 Prerequisites
-
-Python 3.7+
-
-MySQL Server
-
-pip (Python package installer)
-
-🔧 Installation
-
-1.Clone the repository
-
-a) bashgit clone https://github.com/Megaultron19/healthcare-management-system.git
-
-b) cd healthcare-management-system
-
-2.Install required packages
-
-a) bashpip install flask mysql-connector-python
-
-3.Set up MySQL Database
-
-a) sqlCREATE DATABASE healthcare_management;
-
-4.Run the database schema
-
-a) Execute the SQL commands from database_schema.sql to create tables
-
-b) Optionally, run sample_data.sql to populate with test data
-
-
-4.Configure Database Connection
-
-a) Open app.py
-
-b) Update the DB_CONFIG section with your MySQL credentials:
-
-c) pythonDB_CONFIG = {
-
-    'host': 'localhost',
-    
-    'database': 'healthcare_management',
-    
-    'user': 'your_username',
-    
-    'password': 'your_password',
-    
-    'port': 3306
-    
-}
-
-
-5.Run the application
-
-a) python app.py
-
-6.Access the application
-
-a) Open your browser and navigate to: http://localhost:5000
-
-🖥️ Usage
-
-a) Web Interface
-
-b) Navigate to http://localhost:5000 for the main dashboard
-
-c) Use the intuitive interface to search and manage healthcare data
-
-d) Each section provides specific functionality for different data types
-
-
-API Endpoints
-
-1. Doctors
-   
-a)GET /api/doctors - Get all doctors
-
-b)GET /api/doctors/{id} - Get doctor by ID
-
-c)GET /api/doctors/specialization/{specialization} - Get doctors by specialization
-
-
-2. Patients
-
-a)GET /api/patients/{id} - Get patient by ID
-
-b)GET /api/patients/search/{name} - Search patients by last name
-
-
-3. Medical History
-
-a)GET /api/medical-history/patient/{patient_id} - Get patient's medical history
-
-b)GET /api/medical-history/doctor/{doctor_id} - Get medical history by doctor
-
-
-4. Prescriptions
-   
-a)GET /api/prescriptions/patient/{patient_id} - Get patient's prescriptions
-
-b)GET /api/prescriptions/status/{status} - Get prescriptions by status
-
-
-5. Appointments
-   
-a)GET /api/appointments/patient/{patient_id} - Get patient's appointments
-
-b)GET /api/appointments/date/{date} - Get appointments by date
-
-c)GET /api/appointments/status/{status} - Get appointments by status
-
-
-The system uses the following main tables:
-
-1.doctors - Doctor information and specializations
-
-2.patients - Patient demographics and medical info
-
-3.medical_history - Visit records and diagnoses
-
-4.prescriptions - Medication prescriptions and tracking
-
-5.appointments - Appointment scheduling and status
-
-
-
-🤝 Contributing
-
-1.Fork the repository
-
-2.Create a feature branch (git checkout -b feature/AmazingFeature)
-
-3.Commit your changes (git commit -m 'Add some AmazingFeature')
-
-4.Push to the branch (git push origin feature/AmazingFeature)
-
-5.Open a Pull Request
-
-## ⚠️ Security Notice
-
-This repository contains SAMPLE DATA ONLY for development purposes.
-
-- All patient information is fictional
-  
-- Do not use in production without proper security review
-
-
-👨‍💻 Author
-
-Harshit Singh
-
-GitHub:Megaultron19 
-
-Email:harshitkatiyar2003@gmail.com
-
-
-Acknowledgments
-
-Flask documentation and community
-
-MySQL documentation
-
-Healthcare industry standards and practices
-
-📞 Support
-
-If you encounter any issues or have questions:
-
-1.Create a new issue with detailed information.
-
-2.Contact the maintainer.
-
+**Harshit Singh** · GitHub: [Megaultron19](https://github.com/Megaultron19) · harshitkatiyar2003@gmail.com

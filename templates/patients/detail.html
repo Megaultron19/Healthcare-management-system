@@ -49,6 +49,7 @@
     <div class="tab-panel" id="tab-records">
       <div class="panel-actions"><a class="btn btn-primary btn-sm" href="{{ url_for('records.new_record', patient_id=patient.id) }}">{{ icon('plus') }} New visit</a></div>
       {% for r in records %}
+      {% set mine = not current_user.is_doctor or r.doctor_id == current_user.doctor_id %}
       <details class="record" {{ 'open' if loop.first }}>
         <summary>
           <div>
@@ -74,11 +75,13 @@
             {% if r.treatment %}<dt>Treatment</dt><dd class="pre">{{ r.treatment }}</dd>{% endif %}
             {% if r.notes %}<dt>Notes</dt><dd class="pre">{{ r.notes }}</dd>{% endif %}
           </dl>
+          {% if mine %}
           <div class="row-actions">
             <a class="btn btn-ghost btn-sm" href="{{ url_for('records.new_prescription', patient_id=patient.id, record_id=r.id) }}">{{ icon('pill') }}<span>Prescribe</span></a>
             <a class="btn btn-ghost btn-sm" href="{{ url_for('records.edit_record', record_id=r.id) }}">{{ icon('edit') }}<span>Edit</span></a>
             {% if current_user.is_admin %}{{ delete_button(url_for('records.delete_record', record_id=r.id), confirm='Delete this visit record?') }}{% endif %}
           </div>
+          {% endif %}
         </div>
       </details>
       {% else %}
@@ -100,7 +103,9 @@
             <td class="nowrap">{{ rx.prescribed_on.strftime('%d %b %Y') }}</td>
             <td>{{ badge(rx.status) }}</td>
             <td class="right nowrap">
+              {% if not current_user.is_doctor or rx.doctor_id == current_user.doctor_id %}
               <a class="btn btn-ghost btn-sm" href="{{ url_for('records.edit_prescription', prescription_id=rx.id) }}">{{ icon('edit') }}<span>Edit</span></a>
+              {% endif %}
               {% if current_user.is_admin %}{{ delete_button(url_for('records.delete_prescription', prescription_id=rx.id), confirm='Delete this prescription?') }}{% endif %}
             </td>
           </tr>
@@ -124,7 +129,7 @@
             <td>{{ a.doctor.full_name }}</td>
             <td>{{ a.reason or '—' }}</td>
             <td>{{ badge(a.status) }}</td>
-            <td class="right"><a class="btn btn-ghost btn-sm" href="{{ url_for('appointments.edit', appointment_id=a.id, next=here) }}">{{ icon('edit') }}<span>Edit</span></a></td>
+            <td class="right">{% if not current_user.is_doctor or a.doctor_id == current_user.doctor_id %}<a class="btn btn-ghost btn-sm" href="{{ url_for('appointments.edit', appointment_id=a.id, next=here) }}">{{ icon('edit') }}<span>Edit</span></a>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>

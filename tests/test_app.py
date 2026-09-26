@@ -383,3 +383,124 @@ def test_production_requires_database_url(monkeypatch):
     monkeypatch.delenv("POSTGRES_URL", raising=False)
     with pytest.raises(RuntimeError):
         _database_url()
+
+
+# ---- Doctor accounts -------------------------------------------------------
+
+DOCTOR = {"email": "smith@example.com", "password": "doctor-pass-123"}
+
+
+@pytest.fixture
+def doctor(seeded):
+    """Logged-in client for Dr. John Smith (demo patients: Alice, Catherine)."""
+    smith = db.session.scalar(db.select(Doctor).filter_by(last_name="Smith"))
+    user = User(name="John Smith", email=DOCTOR["email"], role="doctor", doctor_id=smith.id)
+    user.set_password(DOCTOR["password"])
+    db.session.add(user)
+    db.session.commit()
+    client = seeded.test_client()
+    login(client, DOCTOR)
+    return client
+
+
+def _smith():
+    return db.session.scalar(db.select(Doctor).filter_by(last_name="Smith"))
+
+
+def _patient(first_name):
+    return db.session.scalar(db.select(Patient).filter_by(first_name=first_name))
+
+
+def test_doctor_sees_only_own_patients(doctor):
+    html = doctor.get("/patients/").data.decode()
+    assert "Alice Cooper" in html and "Catherine Jones" in html
+    assert "Frank Clark" not in html and "Eva Moore" not in html
+    assert "Add patient" not in html
+    assert doctor.get(f"/patients/{_patient('Frank').id}").status_code == 404
+    assert doctor.get(f"/patients/{_patient('Frank').id}/edit").status_code == 404
+    assert doctor.get(f"/patients/{_patient('Alice').id}").status_code == 200
+    # Search can't reach other doctors' patients either.
+    assert b"Frank Clark" not in doctor.get("/patients/?q=Frank").data
+
+
+def test_doctor_sees_only_own_appointments_and_prescriptions(doctor):
+    html = doctor.get("/appointments/").data.decode()
+    assert "Angina follow-up" in html and "Migraine review" not in html
+    rx = doctor.get("/prescriptions").data.decode()
+    assert "Nitroglycerin" in rx and "Sumatriptan" not in rx
+    dash = doctor.get("/").data.decode()
+    assert "Here&#39;s your day" in dash and "Alice Cooper" in dash and "Frank Clark" not in dash
+
+
+def test_doctor_cannot_touch_other_doctors_items(doctor):
+    other_appt = db.session.scalar(db.select(Appointment).filter(Appointment.doctor_id != _smith().id))
+    other_record = db.session.scalar(db.select(MedicalRecord).filter(MedicalRecord.doctor_id != _smith().id))
+    other_rx = db.session.scalar(db.select(Prescription).filter(Prescription.doctor_id != _smith().id))
+    assert doctor.get(f"/appointments/{other_appt.id}/edit").status_code == 404
+    assert doctor.post(f"/appointments/{other_appt.id}/status", data={"status": "Cancelled"}).status_code == 404
+    assert doctor.get(f"/records/{other_record.id}/edit").status_code == 404
+    assert doctor.get(f"/prescriptions/{other_rx.id}/edit").status_code == 404
+    db.session.refresh(other_appt)
+    assert other_appt.status == "Scheduled"
+
+
+def test_doctor_blocked_from_admin_and_clinic_pages(doctor):
+    assert doctor.get("/users").status_code == 403
+    assert doctor.get("/patients/new").status_code == 403
+    assert doctor.get("/doctors/new").status_code == 403
+    assert doctor.get("/doctors/").headers["Location"] == f"/doctors/{_smith().id}"
+    other = db.session.scalar(db.select(Doctor).filter(Doctor.id != _smith().id))
+    assert doctor.get(f"/doctors/{other.id}").status_code == 404
+
+
+def test_doctor_records_visit_and_books_for_own_patient(doctor):
+    alice, smith = _patient("Alice"), _smith()
+    taylor = db.session.scalar(db.select(Doctor).filter_by(last_name="Taylor"))
+    today = local_today()
+    # Can't record a visit under another doctor's name.
+    resp = doctor.post(f"/patients/{alice.id}/records/new", data={"doctor_id": taylor.id, "visit_date": today.isoformat()})
+    assert b"Not a valid choice" in resp.data
+    doctor.post(f"/patients/{alice.id}/records/new", data={"doctor_id": smith.id, "visit_date": today.isoformat(), "diagnosis": "Improving"})
+    assert db.session.scalar(db.select(MedicalRecord).filter_by(diagnosis="Improving")).doctor_id == smith.id
+    # Can only book own patients, with themselves.
+    form = doctor.get("/appointments/new").data.decode()
+    assert "Alice Cooper" in form and "Frank Clark" not in form and "Dr. David Taylor" not in form
+    day = today + timedelta(days=30)
+    resp = doctor.post("/appointments/new", data=_appt_data(alice, smith, day, "15:00"))
+    assert resp.status_code == 302
+    resp = doctor.post("/appointments/new", data=_appt_data(_patient("Frank"), smith, day, "16:00"))
+    assert b"Not a valid choice" in resp.data
+
+
+def test_admin_creates_doctor_login(admin):
+    smith = _smith()
+    form = admin.get(f"/users/new?doctor_id={smith.id}").data.decode()
+    assert 'value="doctor" selected' in form or "selected value=\"doctor\"" in form
+    data = {"name": "John Smith", "email": "js@example.com", "role": "doctor", "active": "y", "password": "doctor-pass-1"}
+    assert b"Choose the doctor profile" in admin.post("/users/new", data={**data, "doctor_id": 0}).data
+    admin.post("/users/new", data={**data, "doctor_id": smith.id})
+    user = db.session.scalar(db.select(User).filter_by(email="js@example.com"))
+    assert user.is_doctor and user.doctor_id == smith.id
+    dup = admin.post("/users/new", data={**data, "email": "other@example.com", "doctor_id": smith.id})
+    assert b"already has a login" in dup.data
+    assert b"js@example.com" in admin.get(f"/doctors/{smith.id}").data
+    # A doctor with a login can't be deleted; switching the role clears the link.
+    admin.post(f"/users/{user.id}/edit", data={**data, "role": "staff", "doctor_id": smith.id})
+    db.session.refresh(user)
+    assert user.doctor_id is None
+
+
+def test_schema_upgrade_adds_doctor_link(tmp_path):
+    from sqlalchemy import create_engine, inspect, text
+
+    url = f"sqlite:///{tmp_path}/old.db"
+    engine = create_engine(url)
+    with engine.begin() as conn:  # the users table as created before doctor logins existed
+        conn.execute(text(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(100) NOT NULL, email VARCHAR(120) NOT NULL UNIQUE, "
+            "password_hash VARCHAR(255) NOT NULL, role VARCHAR(20) NOT NULL, active BOOLEAN NOT NULL, "
+            "created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)"
+        ))
+    app = create_app({"SQLALCHEMY_DATABASE_URI": url})
+    assert "doctor_id" in {c["name"] for c in inspect(create_engine(url)).get_columns("users")}
+    assert app.test_client().get("/login").status_code == 302  # app works: redirects to first-run setup

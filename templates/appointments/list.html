@@ -5,7 +5,7 @@
 {% set here = request.full_path.rstrip('?') %}
 <div class="page-head">
   <div>
-    <h1>Appointments</h1>
+    <h1>{{ 'My appointments' if current_user.is_doctor else 'Appointments' }}</h1>
     <p class="muted">{{ page.total }} appointment{{ '' if page.total == 1 else 's' }}</p>
   </div>
   <a class="btn btn-primary" href="{{ url_for('appointments.new') }}">{{ icon('plus') }} Book appointment</a>
@@ -14,10 +14,12 @@
 <form class="toolbar" method="get">
   <div class="search">{{ icon('search') }}<input type="search" name="q" value="{{ filters.q }}" placeholder="Patient name or reason" aria-label="Search appointments"></div>
   <input type="date" name="date" value="{{ filters.date }}" aria-label="Date">
+  {% if not current_user.is_doctor %}
   <select name="doctor_id" aria-label="Doctor">
     <option value="">All doctors</option>
     {% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if filters.doctor_id == d.id }}>{{ d.full_name }}</option>{% endfor %}
   </select>
+  {% endif %}
   <select name="status" aria-label="Status">
     <option value="">All statuses</option>
     {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ s }}</option>{% endfor %}

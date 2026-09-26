@@ -4,10 +4,10 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>Patients</h1>
+    <h1>{{ 'My patients' if current_user.is_doctor else 'Patients' }}</h1>
     <p class="muted">{{ page.total }} patient{{ '' if page.total == 1 else 's' }}{% if q %} matching “{{ q }}”{% endif %}</p>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('patients.new') }}">{{ icon('plus') }} Add patient</a>
+  {% if not current_user.is_doctor %}<a class="btn btn-primary" href="{{ url_for('patients.new') }}">{{ icon('plus') }} Add patient</a>{% endif %}
 </div>
 
 <form class="toolbar" method="get">
@@ -39,7 +39,11 @@
   {% elif q %}
     {{ empty("No patients match your search.") }}
   {% else %}
-    {{ empty("No patients yet. Add your first patient to get started.", url_for('patients.new'), 'Add patient') }}
+    {% if current_user.is_doctor %}
+      {{ empty("No patients yet. Patients appear here once they have an appointment, visit or prescription with you.") }}
+    {% else %}
+      {{ empty("No patients yet. Add your first patient to get started.", url_for('patients.new'), 'Add patient') }}
+    {% endif %}
   {% endif %}
 </div>
 {% endblock %}

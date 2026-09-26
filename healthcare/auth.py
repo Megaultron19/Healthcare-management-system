@@ -2,8 +2,8 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required, login_user, logout_user
 
 from .extensions import db
-from .forms import ChangePasswordForm, LoginForm, SetupForm, UserForm
-from .models import User
+from .forms import ChangePasswordForm, LoginForm, SetupForm, UserForm, doctor_link_choices
+from .models import Doctor, User
 from .utils import admin_required, fill_model, safe_url
 
 bp = Blueprint("auth", __name__)
@@ -85,21 +85,47 @@ def _email_taken(email, exclude_id=None):
     return user is not None and user.id != exclude_id
 
 
+def _doctor_link_error(form, exclude_id=None):
+    """Validate the doctor profile link; returns an error message or None."""
+    if form.role.data != "doctor":
+        return None
+    if not form.doctor_id.data or not db.session.get(Doctor, form.doctor_id.data):
+        return "Choose the doctor profile this login belongs to."
+    owner = db.session.scalar(db.select(User).filter_by(doctor_id=form.doctor_id.data))
+    if owner and owner.id != exclude_id:
+        return f"This doctor already has a login ({owner.email})."
+    return None
+
+
+def _save_user(user, form, email):
+    fill_model(user, form, exclude=("csrf_token", "doctor_id"))
+    user.email = email
+    user.doctor_id = form.doctor_id.data if form.role.data == "doctor" else None
+
+
 @bp.route("/users/new", methods=["GET", "POST"])
 @admin_required
 def new_user():
     form = UserForm()
+    form.doctor_id.choices = doctor_link_choices()
     form.password.description = "At least 8 characters."
+    if request.method == "GET" and request.args.get("doctor_id", type=int):
+        doctor = db.session.get(Doctor, request.args.get("doctor_id", type=int))
+        if doctor:
+            form.role.data, form.doctor_id.data = "doctor", doctor.id
+            form.name.data, form.email.data = f"{doctor.first_name} {doctor.last_name}", doctor.email
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
+        link_error = _doctor_link_error(form)
         if not form.password.data:
             form.password.errors.append("A password is required for new users.")
         elif _email_taken(email):
             form.email.errors.append("A user with this email already exists.")
+        elif link_error:
+            form.doctor_id.errors.append(link_error)
         else:
             user = User()
-            fill_model(user, form)
-            user.email = email
+            _save_user(user, form, email)
             user.set_password(form.password.data)
             db.session.add(user)
             db.session.commit()
@@ -113,16 +139,21 @@ def new_user():
 def edit_user(user_id):
     user = db.session.get(User, user_id) or abort(404)
     form = UserForm(obj=user)
+    form.doctor_id.choices = doctor_link_choices()
+    if request.method == "GET":
+        form.doctor_id.data = user.doctor_id or 0
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
         is_self = user.id == current_user.id
+        link_error = _doctor_link_error(form, exclude_id=user.id)
         if _email_taken(email, exclude_id=user.id):
             form.email.errors.append("A user with this email already exists.")
         elif is_self and (form.role.data != "admin" or not form.active.data):
             flash("You can't remove your own admin access or deactivate yourself.", "error")
+        elif link_error:
+            form.doctor_id.errors.append(link_error)
         else:
-            fill_model(user, form)
-            user.email = email
+            _save_user(user, form, email)
             if form.password.data:
                 user.set_password(form.password.data)
             db.session.commit()

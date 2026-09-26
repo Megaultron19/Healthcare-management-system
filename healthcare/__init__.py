@@ -25,6 +25,17 @@ def _database_url():
     return url
 
 
+def _upgrade_schema():
+    """Add columns introduced after the first release to databases created before them."""
+    from sqlalchemy import inspect, text
+
+    user_columns = {c["name"] for c in inspect(db.engine).get_columns("users")}
+    if "doctor_id" not in user_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN doctor_id INTEGER REFERENCES doctors(id)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_doctor_id ON users (doctor_id)"))
+
+
 def _setup_error_app(problems):
     """A minimal app that explains missing configuration instead of crashing with a blank 500 page."""
     for problem in problems:
@@ -107,6 +118,7 @@ def create_app(test_config=None):
     try:
         with app.app_context():
             db.create_all()
+            _upgrade_schema()
     except Exception as e:  # e.g. database unreachable or wrong password
         first_line = str(e).strip().splitlines()[0] if str(e).strip() else ""
         return _setup_error_app([

@@ -1,6 +1,7 @@
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
+from .access import ensure_patient_access, scope_patients, staff_only
 from .extensions import db
 from .forms import PatientForm
 from .models import Appointment, MedicalRecord, Patient, Prescription
@@ -10,14 +11,16 @@ bp = Blueprint("patients", __name__, url_prefix="/patients")
 
 
 def get_patient(patient_id):
-    return db.session.get(Patient, patient_id) or abort(404)
+    patient = db.session.get(Patient, patient_id) or abort(404)
+    ensure_patient_access(patient)
+    return patient
 
 
 @bp.route("/")
 @login_required
 def index():
     q = request.args.get("q", "").strip()
-    query = db.select(Patient).order_by(Patient.last_name, Patient.first_name)
+    query = scope_patients(db.select(Patient), Patient.id).order_by(Patient.last_name, Patient.first_name)
     if q:
         like = f"%{q}%"
         conditions = [
@@ -37,6 +40,7 @@ def index():
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 def new():
+    staff_only()
     form = PatientForm()
     if form.validate_on_submit():
         patient = Patient()

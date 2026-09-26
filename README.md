@@ -38,7 +38,10 @@ A complete web application for clinics to manage **patients, doctors, appointmen
 
 **Users and security**
 - Sign-in with hashed passwords
-- Two roles: **Admin** manages doctors and users and can delete records; **Staff** handles day-to-day work
+- Three roles:
+  - **Admin** manages doctors and users and can delete records
+  - **Staff** handles day-to-day work across the clinic
+  - **Doctor** sees only their own patients, appointments, visits and prescriptions
 - CSRF protection on every form
 - Secure cookies in production
 - First-run setup page that creates the initial admin
@@ -90,6 +93,17 @@ export DATABASE_URL="postgresql://USER:PASSWORD@ep-xxxx-pooler.REGION.aws.neon.t
 5. **Deploy** (or redeploy after adding variables), open the site and create your admin account.
 
 Tables are created automatically on first start. To load demo data into Neon, run `flask --app app seed` locally with `DATABASE_URL` pointing at Neon.
+
+## Doctor logins
+
+1. Sign in as an admin and open a doctor's page under **Doctors**.
+2. Click **Create login**, then set the email and password. You can also do this from **Users → Add user**, choosing the Doctor role and the doctor profile.
+3. When that doctor signs in, they see only:
+   - their own patients: anyone with an appointment, visit or prescription with them, including that patient's full history so they have the clinical context
+   - their own appointments and prescriptions
+   - a dashboard for their day
+
+Doctors can record visits, prescribe and book follow-ups for their own patients. They can't add new patients, see other doctors' patients, or change other doctors' entries. Reception or an admin adds new patients and books their first appointment with the doctor.
 
 ## Environment variables
 

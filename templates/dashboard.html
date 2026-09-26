@@ -5,10 +5,10 @@
 <div class="page-head">
   <div>
     <h1>Welcome back, {{ current_user.name.split(' ')[0] }}</h1>
-    <p class="muted">Here's what's happening at the clinic today.</p>
+    <p class="muted">{{ "Here's your day." if current_user.is_doctor else "Here's what's happening at the clinic today." }}</p>
   </div>
   <div class="actions">
-    <a class="btn btn-ghost" href="{{ url_for('patients.new') }}">{{ icon('plus') }} New patient</a>
+    {% if not current_user.is_doctor %}<a class="btn btn-ghost" href="{{ url_for('patients.new') }}">{{ icon('plus') }} New patient</a>{% endif %}
     <a class="btn btn-primary" href="{{ url_for('appointments.new') }}">{{ icon('calendar') }} Book appointment</a>
   </div>
 </div>
@@ -16,16 +16,23 @@
 <div class="stats">
   <a class="stat" href="{{ url_for('patients.index') }}">
     <span class="stat-icon tone-blue">{{ icon('users') }}</span>
-    <div><div class="stat-value">{{ stats.patients }}</div><div class="stat-label">Patients</div></div>
+    <div><div class="stat-value">{{ stats.patients }}</div><div class="stat-label">{{ 'My patients' if current_user.is_doctor else 'Patients' }}</div></div>
   </a>
   <a class="stat" href="{{ url_for('appointments.index', date=today.isoformat()) }}">
     <span class="stat-icon tone-teal">{{ icon('calendar') }}</span>
     <div><div class="stat-value">{{ stats.today }}</div><div class="stat-label">Appointments today</div></div>
   </a>
+  {% if current_user.is_doctor %}
+  <div class="stat">
+    <span class="stat-icon tone-violet">{{ icon('file') }}</span>
+    <div><div class="stat-value">{{ stats.visits }}</div><div class="stat-label">Visits (last 30 days)</div></div>
+  </div>
+  {% else %}
   <a class="stat" href="{{ url_for('doctors.index') }}">
     <span class="stat-icon tone-violet">{{ icon('stethoscope') }}</span>
     <div><div class="stat-value">{{ stats.doctors }}</div><div class="stat-label">Active doctors</div></div>
   </a>
+  {% endif %}
   <a class="stat" href="{{ url_for('records.prescriptions', status='Active') }}">
     <span class="stat-icon tone-amber">{{ icon('pill') }}</span>
     <div><div class="stat-value">{{ stats.prescriptions }}</div><div class="stat-label">Active prescriptions</div></div>
@@ -99,7 +106,7 @@
 
   <section class="card">
     <div class="card-head">
-      <h2>Recently added patients</h2>
+      <h2>{{ 'My newest patients' if current_user.is_doctor else 'Recently added patients' }}</h2>
       <a class="link" href="{{ url_for('patients.index') }}">All patients</a>
     </div>
     {% if recent_patients %}
@@ -115,7 +122,7 @@
       {% endfor %}
     </ul>
     {% else %}
-      {{ empty("No patients yet.", url_for('patients.new'), 'Add a patient') }}
+      {{ empty("No patients yet.", url_for('patients.new') if not current_user.is_doctor, 'Add a patient') }}
     {% endif %}
   </section>
 </div>

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "macros.html" import field with context %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{{ cancel_url }}">← Back</a>
+    <h1>{{ title }}</h1>
+  </div>
+</div>
+<form method="post" class="card form-card" novalidate>
+  {{ form.hidden_tag() }}
+  <div class="form-grid">
+    {% for f in form if f.type not in ['CSRFTokenField', 'HiddenField'] %}
+      {{ field(f) }}
+    {% endfor %}
+  </div>
+  <div class="form-actions">
+    <a class="btn btn-ghost" href="{{ cancel_url }}">Cancel</a>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, badge, pagination, delete_button, empty with context %}
+{% block title %}Appointments · {% endblock %}
+{% block content %}
+{% set here = request.full_path.rstrip('?') %}
+<div class="page-head">
+  <div>
+    <h1>Appointments</h1>
+    <p class="muted">{{ page.total }} appointment{{ '' if page.total == 1 else 's' }}</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('appointments.new') }}">{{ icon('plus') }} Book appointment</a>
+</div>
+
+<form class="toolbar" method="get">
+  <div class="search">{{ icon('search') }}<input type="search" name="q" value="{{ filters.q }}" placeholder="Patient name or reason" aria-label="Search appointments"></div>
+  <input type="date" name="date" value="{{ filters.date }}" aria-label="Date">
+  <select name="doctor_id" aria-label="Doctor">
+    <option value="">All doctors</option>
+    {% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if filters.doctor_id == d.id }}>{{ d.full_name }}</option>{% endfor %}
+  </select>
+  <select name="status" aria-label="Status">
+    <option value="">All statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-ghost" type="submit">Filter</button>
+  <a class="link" href="{{ url_for('appointments.index', date=today.isoformat()) }}">Today</a>
+  {% if filters.q or filters.date or filters.status or filters.doctor_id %}<a class="link" href="{{ url_for('appointments.index') }}">Clear</a>{% endif %}
+</form>
+
+<div class="card">
+  {% if page.items %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>When</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for a in page.items %}
+      <tr>
+        <td class="nowrap"><strong>{{ a.date.strftime('%d %b %Y') }}</strong><small class="muted block">{{ a.date.strftime('%A') }}, {{ a.time.strftime('%H:%M') }}</small></td>
+        <td><a href="{{ url_for('patients.detail', patient_id=a.patient_id) }}">{{ a.patient.full_name }}</a></td>
+        <td>{{ a.doctor.full_name }}<small class="muted block">{{ a.doctor.specialization }}</small></td>
+        <td>{{ a.reason or '—' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('appointments.set_status', appointment_id=a.id) }}" class="inline status-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ here }}">
+            <select name="status" class="status-select status-{{ a.status|lower }}" aria-label="Change status" data-autosubmit>
+              {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if a.status == s }}>{{ s }}</option>{% endfor %}
+            </select>
+            <noscript><button class="btn btn-ghost btn-sm" type="submit">Save</button></noscript>
+          </form>
+        </td>
+        <td class="right nowrap">
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('appointments.edit', appointment_id=a.id, next=here) }}">{{ icon('edit') }}<span>Edit</span></a>
+          {% if current_user.is_admin %}{{ delete_button(url_for('appointments.delete', appointment_id=a.id), confirm='Delete this appointment?', next=here) }}{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ pagination(page, 'appointments.index') }}
+  {% else %}
+    {{ empty("No appointments found.", url_for('appointments.new'), 'Book appointment') }}
+  {% endif %}
+</div>
+{% endblock %}

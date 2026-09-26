@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, pagination, empty with context %}
+{% block title %}Doctors · {% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Doctors</h1>
+    <p class="muted">{{ page.total }} doctor{{ '' if page.total == 1 else 's' }}{% if q %} matching “{{ q }}”{% endif %}</p>
+  </div>
+  {% if current_user.is_admin %}<a class="btn btn-primary" href="{{ url_for('doctors.new') }}">{{ icon('plus') }} Add doctor</a>{% endif %}
+</div>
+
+<form class="toolbar" method="get">
+  <div class="search">{{ icon('search') }}<input type="search" name="q" value="{{ q }}" placeholder="Search by name, specialization or department" aria-label="Search doctors"></div>
+  <button class="btn btn-ghost" type="submit">Search</button>
+  {% if q %}<a class="link" href="{{ url_for('doctors.index') }}">Clear</a>{% endif %}
+</form>
+
+{% if page.items %}
+<div class="doctor-grid">
+  {% for d in page.items %}
+  <a class="card doctor-card {{ 'inactive' if not d.active }}" href="{{ url_for('doctors.detail', doctor_id=d.id) }}">
+    <span class="avatar avatar-lg">{{ d.first_name[:1] }}{{ d.last_name[:1] }}</span>
+    <div>
+      <strong>{{ d.full_name }}</strong>
+      <span class="muted block">{{ d.specialization }}</span>
+      {% if d.department %}<small class="muted block">{{ d.department }}</small>{% endif %}
+      {% if not d.active %}<span class="badge badge-cancelled">Inactive</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+<div class="card">{{ pagination(page, 'doctors.index') }}</div>
+{% elif q %}
+  <div class="card">{{ empty("No doctors match your search.") }}</div>
+{% else %}
+  <div class="card">{{ empty("No doctors yet.", url_for('doctors.new') if current_user.is_admin, 'Add doctor') }}</div>
+{% endif %}
+{% endblock %}

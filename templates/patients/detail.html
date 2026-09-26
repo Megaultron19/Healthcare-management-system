@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, badge, delete_button, empty with context %}
+{% block title %}{{ patient.full_name }} · {% endblock %}
+{% block content %}
+{% set here = url_for('patients.detail', patient_id=patient.id) ~ '#appointments' %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{{ url_for('patients.index') }}">← All patients</a>
+    <h1>{{ patient.full_name }} <span class="muted id">#{{ patient.id }}</span></h1>
+    <p class="muted">{{ patient.gender }} · {{ patient.age }} years · Born {{ patient.date_of_birth.strftime('%d %b %Y') }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('patients.edit', patient_id=patient.id) }}">{{ icon('edit') }} Edit</a>
+    <a class="btn btn-primary" href="{{ url_for('appointments.new', patient_id=patient.id, next=here) }}">{{ icon('calendar') }} Book appointment</a>
+  </div>
+</div>
+
+{% if patient.allergies and patient.allergies|lower not in ['none', 'nil', 'nkda'] %}
+<div class="alert-strip">{{ icon('alert') }} <strong>Allergies:</strong> {{ patient.allergies }}</div>
+{% endif %}
+
+<div class="grid-profile">
+  <section class="card">
+    <div class="card-head"><h2>Profile</h2></div>
+    <dl class="dl">
+      <dt>Blood group</dt><dd>{{ patient.blood_group or '—' }}</dd>
+      <dt>Phone</dt><dd>{{ patient.phone or '—' }}</dd>
+      <dt>Email</dt><dd>{{ patient.email or '—' }}</dd>
+      <dt>Address</dt><dd class="pre">{{ patient.address or '—' }}</dd>
+      <dt>Emergency contact</dt><dd>{{ patient.emergency_contact_name or '—' }}{% if patient.emergency_contact_phone %}<br><span class="muted">{{ patient.emergency_contact_phone }}</span>{% endif %}</dd>
+      {% if patient.notes %}<dt>Notes</dt><dd class="pre">{{ patient.notes }}</dd>{% endif %}
+      <dt>Registered</dt><dd>{{ patient.created_at.strftime('%d %b %Y') }}</dd>
+    </dl>
+    {% if current_user.is_admin %}
+    <div class="danger-zone">
+      {{ delete_button(url_for('patients.delete', patient_id=patient.id), 'Delete patient',
+         'Delete ' ~ patient.full_name ~ ' and ALL their visits, prescriptions and appointments? This cannot be undone.', small=False) }}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card tabs-card">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="records">{{ icon('file') }} Visits <span class="count">{{ records|length }}</span></button>
+      <button role="tab" data-tab="prescriptions">{{ icon('pill') }} Prescriptions <span class="count">{{ prescriptions|length }}</span></button>
+      <button role="tab" data-tab="appointments">{{ icon('calendar') }} Appointments <span class="count">{{ appointments|length }}</span></button>
+    </div>
+
+    <div class="tab-panel" id="tab-records">
+      <div class="panel-actions"><a class="btn btn-primary btn-sm" href="{{ url_for('records.new_record', patient_id=patient.id) }}">{{ icon('plus') }} New visit</a></div>
+      {% for r in records %}
+      <details class="record" {{ 'open' if loop.first }}>
+        <summary>
+          <div>
+            <strong>{{ r.diagnosis or r.chief_complaint or 'Visit' }}</strong>
+            <small class="muted block">{{ r.visit_date.strftime('%d %b %Y') }} · {{ r.doctor.full_name }}</small>
+          </div>
+          {% if r.follow_up_date %}<span class="badge badge-info nowrap">Follow-up {{ r.follow_up_date.strftime('%d %b') }}</span>{% endif %}
+        </summary>
+        <div class="record-body">
+          {% if r.blood_pressure or r.temperature or r.pulse or r.oxygen_saturation or r.weight %}
+          <div class="vitals">
+            {% if r.blood_pressure %}<div><small>BP</small><strong>{{ r.blood_pressure }}</strong></div>{% endif %}
+            {% if r.temperature %}<div><small>Temp</small><strong>{{ r.temperature }}°F</strong></div>{% endif %}
+            {% if r.pulse %}<div><small>Pulse</small><strong>{{ r.pulse }}</strong></div>{% endif %}
+            {% if r.oxygen_saturation %}<div><small>SpO₂</small><strong>{{ r.oxygen_saturation }}%</strong></div>{% endif %}
+            {% if r.weight %}<div><small>Weight</small><strong>{{ r.weight }} kg</strong></div>{% endif %}
+          </div>
+          {% endif %}
+          <dl class="dl">
+            {% if r.chief_complaint %}<dt>Complaint</dt><dd class="pre">{{ r.chief_complaint }}</dd>{% endif %}
+            {% if r.symptoms %}<dt>Symptoms</dt><dd class="pre">{{ r.symptoms }}</dd>{% endif %}
+            {% if r.diagnosis %}<dt>Diagnosis</dt><dd class="pre">{{ r.diagnosis }}</dd>{% endif %}
+            {% if r.treatment %}<dt>Treatment</dt><dd class="pre">{{ r.treatment }}</dd>{% endif %}
+            {% if r.notes %}<dt>Notes</dt><dd class="pre">{{ r.notes }}</dd>{% endif %}
+          </dl>
+          <div class="row-actions">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('records.new_prescription', patient_id=patient.id, record_id=r.id) }}">{{ icon('pill') }}<span>Prescribe</span></a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('records.edit_record', record_id=r.id) }}">{{ icon('edit') }}<span>Edit</span></a>
+            {% if current_user.is_admin %}{{ delete_button(url_for('records.delete_record', record_id=r.id), confirm='Delete this visit record?') }}{% endif %}
+          </div>
+        </div>
+      </details>
+      {% else %}
+        {{ empty("No visits recorded yet.") }}
+      {% endfor %}
+    </div>
+
+    <div class="tab-panel" id="tab-prescriptions">
+      <div class="panel-actions"><a class="btn btn-primary btn-sm" href="{{ url_for('records.new_prescription', patient_id=patient.id) }}">{{ icon('plus') }} New prescription</a></div>
+      {% if prescriptions %}
+      <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Medication</th><th>Dosage</th><th>Date</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for rx in prescriptions %}
+          <tr>
+            <td><strong>{{ rx.medication }}</strong><small class="muted block">{{ rx.doctor.full_name }}{% if rx.instructions %} · {{ rx.instructions|truncate(40) }}{% endif %}</small></td>
+            <td>{{ rx.dosage }}<small class="muted block">{{ rx.frequency }}{% if rx.duration %} · {{ rx.duration }}{% endif %}</small></td>
+            <td class="nowrap">{{ rx.prescribed_on.strftime('%d %b %Y') }}</td>
+            <td>{{ badge(rx.status) }}</td>
+            <td class="right nowrap">
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('records.edit_prescription', prescription_id=rx.id) }}">{{ icon('edit') }}<span>Edit</span></a>
+              {% if current_user.is_admin %}{{ delete_button(url_for('records.delete_prescription', prescription_id=rx.id), confirm='Delete this prescription?') }}{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}{{ empty("No prescriptions yet.") }}{% endif %}
+    </div>
+
+    <div class="tab-panel" id="tab-appointments">
+      <div class="panel-actions"><a class="btn btn-primary btn-sm" href="{{ url_for('appointments.new', patient_id=patient.id, next=here) }}">{{ icon('plus') }} Book appointment</a></div>
+      {% if appointments %}
+      <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Date</th><th>Doctor</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for a in appointments %}
+          <tr>
+            <td class="nowrap">{{ a.date.strftime('%d %b %Y') }}<small class="muted block">{{ a.time.strftime('%H:%M') }}</small></td>
+            <td>{{ a.doctor.full_name }}</td>
+            <td>{{ a.reason or '—' }}</td>
+            <td>{{ badge(a.status) }}</td>
+            <td class="right"><a class="btn btn-ghost btn-sm" href="{{ url_for('appointments.edit', appointment_id=a.id, next=here) }}">{{ icon('edit') }}<span>Edit</span></a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}{{ empty("No appointments yet.") }}{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

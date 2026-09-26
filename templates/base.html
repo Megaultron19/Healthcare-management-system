@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% if title %}{{ title }} · {% endif %}{% endblock %}{{ app_name }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% from "macros.html" import icon with context %}
+{% if current_user.is_authenticated %}
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="{{ url_for('dashboard.index') }}">
+      <span class="brand-mark">{{ icon('pulse') }}</span>
+      <span>{{ app_name }}</span>
+    </a>
+    {% set ep = request.endpoint or '' %}
+    <nav class="nav">
+      <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if ep.startswith('dashboard') }}">{{ icon('home') }} Dashboard</a>
+      <a href="{{ url_for('patients.index') }}" class="{{ 'active' if ep.startswith('patients') or ep in ['records.new_record','records.edit_record','records.new_prescription','records.edit_prescription'] }}">{{ icon('users') }} Patients</a>
+      <a href="{{ url_for('appointments.index') }}" class="{{ 'active' if ep.startswith('appointments') }}">{{ icon('calendar') }} Appointments</a>
+      <a href="{{ url_for('doctors.index') }}" class="{{ 'active' if ep.startswith('doctors') }}">{{ icon('stethoscope') }} Doctors</a>
+      <a href="{{ url_for('records.prescriptions') }}" class="{{ 'active' if ep == 'records.prescriptions' }}">{{ icon('pill') }} Prescriptions</a>
+      {% if current_user.is_admin %}
+      <div class="nav-label">Administration</div>
+      <a href="{{ url_for('auth.users') }}" class="{{ 'active' if ep in ['auth.users','auth.new_user','auth.edit_user'] }}">{{ icon('shield') }} Users</a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-foot">
+      <div class="me">
+        <span class="avatar">{{ current_user.name[:1] | upper }}</span>
+        <div>
+          <strong>{{ current_user.name }}</strong>
+          <small>{{ current_user.role | title }}</small>
+        </div>
+      </div>
+      <a href="{{ url_for('auth.change_password') }}" class="link-muted">Change password</a>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="link-muted" type="submit">Sign out</button>
+      </form>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" type="button" aria-label="Open menu" onclick="document.body.classList.toggle('nav-open')">{{ icon('menu') }}</button>
+      <span class="topbar-title">{{ app_name }}</span>
+      <span class="topbar-date">{{ today.strftime('%A, %d %B %Y') }}</span>
+    </header>
+    <div class="scrim" onclick="document.body.classList.remove('nav-open')"></div>
+    <main class="content">
+      {% include "_flashes.html" %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+<main class="auth-wrap">
+  {% include "_flashes.html" %}
+  {% block auth_content %}{% endblock %}
+</main>
+{% endif %}
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

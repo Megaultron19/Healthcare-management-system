@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, badge, delete_button with context %}
+{% block title %}{{ doctor.full_name }} · {% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back" href="{{ url_for('doctors.index') }}">← All doctors</a>
+    <h1>{{ doctor.full_name }} {% if not doctor.active %}<span class="badge badge-cancelled">Inactive</span>{% endif %}</h1>
+    <p class="muted">{{ doctor.specialization }}{% if doctor.department %} · {{ doctor.department }}{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if current_user.is_admin %}<a class="btn btn-ghost" href="{{ url_for('doctors.edit', doctor_id=doctor.id) }}">{{ icon('edit') }} Edit</a>{% endif %}
+    {% if doctor.active %}<a class="btn btn-primary" href="{{ url_for('appointments.new', doctor_id=doctor.id) }}">{{ icon('calendar') }} Book with doctor</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid-profile">
+  <section class="card">
+    <div class="card-head"><h2>Contact</h2></div>
+    <dl class="dl">
+      <dt>Phone</dt><dd>{{ doctor.phone or '—' }}</dd>
+      <dt>Email</dt><dd>{{ doctor.email or '—' }}</dd>
+      <dt>Department</dt><dd>{{ doctor.department or '—' }}</dd>
+    </dl>
+    {% if current_user.is_admin %}
+    <div class="danger-zone">
+      {{ delete_button(url_for('doctors.delete', doctor_id=doctor.id), 'Delete doctor', 'Delete ' ~ doctor.full_name ~ '?', small=False) }}
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head">
+        <h2>Upcoming appointments</h2>
+        <a class="link" href="{{ url_for('appointments.index', doctor_id=doctor.id) }}">All appointments</a>
+      </div>
+      {% if upcoming %}
+      <ul class="list">
+        {% for a in upcoming %}
+        <li>
+          <div><a href="{{ url_for('patients.detail', patient_id=a.patient_id) }}"><strong>{{ a.patient.full_name }}</strong></a><small class="muted block">{{ a.reason or '—' }}</small></div>
+          <span class="muted nowrap">{{ a.date.strftime('%a %d %b') }}, {{ a.time.strftime('%H:%M') }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted pad">No upcoming appointments.</p>{% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Recent visits</h2></div>
+      {% if recent %}
+      <ul class="list">
+        {% for r in recent %}
+        <li>
+          <div><a href="{{ url_for('patients.detail', patient_id=r.patient_id) }}#records"><strong>{{ r.patient.full_name }}</strong></a><small class="muted block">{{ r.diagnosis or r.chief_complaint or 'Visit' }}</small></div>
+          <span class="muted nowrap">{{ r.visit_date.strftime('%d %b %Y') }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted pad">No visits recorded.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

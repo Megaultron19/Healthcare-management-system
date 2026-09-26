@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon, pagination, empty with context %}
+{% block title %}Patients · {% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Patients</h1>
+    <p class="muted">{{ page.total }} patient{{ '' if page.total == 1 else 's' }}{% if q %} matching “{{ q }}”{% endif %}</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('patients.new') }}">{{ icon('plus') }} Add patient</a>
+</div>
+
+<form class="toolbar" method="get">
+  <div class="search">{{ icon('search') }}<input type="search" name="q" value="{{ q }}" placeholder="Search by name, phone, email or #ID" aria-label="Search patients"></div>
+  <button class="btn btn-ghost" type="submit">Search</button>
+  {% if q %}<a class="link" href="{{ url_for('patients.index') }}">Clear</a>{% endif %}
+</form>
+
+<div class="card">
+  {% if page.items %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Patient</th><th>Age / Gender</th><th>Blood</th><th>Phone</th><th>Allergies</th><th></th></tr></thead>
+    <tbody>
+    {% for p in page.items %}
+      <tr class="row-link" data-href="{{ url_for('patients.detail', patient_id=p.id) }}">
+        <td><a href="{{ url_for('patients.detail', patient_id=p.id) }}"><strong>{{ p.full_name }}</strong></a><small class="muted block">#{{ p.id }}</small></td>
+        <td>{{ p.age }} · {{ p.gender }}</td>
+        <td>{{ p.blood_group or '—' }}</td>
+        <td class="nowrap">{{ p.phone or '—' }}</td>
+        <td>{% if p.allergies and p.allergies|lower not in ['none', 'nil', 'nkda'] %}<span class="badge badge-allergy">{{ p.allergies|truncate(28) }}</span>{% else %}<span class="muted">None</span>{% endif %}</td>
+        <td class="right"><a class="btn btn-ghost btn-sm" href="{{ url_for('patients.edit', patient_id=p.id) }}">{{ icon('edit') }}<span>Edit</span></a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ pagination(page, 'patients.index') }}
+  {% elif q %}
+    {{ empty("No patients match your search.") }}
+  {% else %}
+    {{ empty("No patients yet. Add your first patient to get started.", url_for('patients.new'), 'Add patient') }}
+  {% endif %}
+</div>
+{% endblock %}

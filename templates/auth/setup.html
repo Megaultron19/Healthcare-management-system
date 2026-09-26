@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "macros.html" import field, icon with context %}
+{% block title %}Setup · {% endblock %}
+{% block auth_content %}
+<div class="auth-card">
+  <div class="auth-brand"><span class="brand-mark">{{ icon('pulse') }}</span>{{ app_name }}</div>
+  <h1>Create your administrator account</h1>
+  <p class="muted">This one-time setup creates the first account. You can add staff users afterwards.</p>
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {{ field(form.name) }}
+    {{ field(form.email) }}
+    {{ field(form.password) }}
+    {{ field(form.confirm) }}
+    <button class="btn btn-primary btn-block" type="submit">Create account</button>
+  </form>
+</div>
+{% endblock %}

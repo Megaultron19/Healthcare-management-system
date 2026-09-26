@@ -359,11 +359,20 @@ def test_database_url_normalisation(monkeypatch):
     assert _database_url() == "postgresql+psycopg2://u:p@host/db"
 
 
-def test_production_requires_secret_key(monkeypatch):
+def test_production_without_config_shows_setup_page(monkeypatch):
     monkeypatch.setenv("VERCEL", "1")
-    monkeypatch.delenv("SECRET_KEY", raising=False)
-    with pytest.raises(RuntimeError):
-        create_app({"SQLALCHEMY_DATABASE_URI": "sqlite://"})
+    for var in ("SECRET_KEY", "DATABASE_URL", "POSTGRES_URL"):
+        monkeypatch.delenv(var, raising=False)
+    resp = create_app().test_client().get("/patients/")
+    assert resp.status_code == 500
+    assert b"SECRET_KEY is not set" in resp.data and b"DATABASE_URL must be set" in resp.data
+
+
+def test_unreachable_database_shows_setup_page(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:secret@127.0.0.1:1/db")
+    resp = create_app().test_client().get("/")
+    assert resp.status_code == 500
+    assert b"Could not connect to the database" in resp.data and b"secret" not in resp.data
 
 
 def test_production_requires_database_url(monkeypatch):

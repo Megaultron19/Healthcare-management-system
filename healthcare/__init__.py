@@ -1,6 +1,8 @@
 import os
+import sys
 
 from flask import Flask, render_template
+from markupsafe import escape
 
 from .extensions import csrf, db, login_manager
 from .utils import local_today
@@ -23,6 +25,27 @@ def _database_url():
     return url
 
 
+def _setup_error_app(problems):
+    """A minimal app that explains missing configuration instead of crashing with a blank 500 page."""
+    for problem in problems:
+        print(f"CONFIGURATION ERROR: {problem}", file=sys.stderr)
+    items = "".join(f"<li>{escape(p)}</li>" for p in problems)
+    page = (
+        "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<title>Setup required</title>"
+        "<body style='font-family:system-ui,sans-serif;max-width:640px;margin:10vh auto;padding:0 16px;line-height:1.6'>"
+        f"<h1>Setup required</h1><p>The app can't start until this is fixed:</p><ul>{items}</ul></body>"
+    )
+    app = Flask(__name__)
+
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def setup_required(path):
+        return page, 500
+
+    return app
+
+
 def create_app(test_config=None):
     app = Flask(
         __name__,
@@ -33,15 +56,24 @@ def create_app(test_config=None):
     )
 
     on_vercel = bool(os.environ.get("VERCEL"))
+    problems = []
     secret_key = os.environ.get("SECRET_KEY")
     if not secret_key:
         if on_vercel:
-            raise RuntimeError("SECRET_KEY environment variable must be set in production.")
+            problems.append(
+                "SECRET_KEY is not set. Add it in Vercel → Settings → Environment Variables, then redeploy."
+            )
         secret_key = "dev-only-insecure-key"
+    try:
+        database_url = _database_url()
+    except RuntimeError as e:
+        problems.append(str(e) + " Then redeploy.")
+    if problems:
+        return _setup_error_app(problems)
 
     app.config.update(
         SECRET_KEY=secret_key,
-        SQLALCHEMY_DATABASE_URI=_database_url(),
+        SQLALCHEMY_DATABASE_URI=database_url,
         SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True, "pool_recycle": 300},
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -72,8 +104,15 @@ def create_app(test_config=None):
 
     register_cli(app)
 
-    with app.app_context():
-        db.create_all()
+    try:
+        with app.app_context():
+            db.create_all()
+    except Exception as e:  # e.g. database unreachable or wrong password
+        first_line = str(e).strip().splitlines()[0] if str(e).strip() else ""
+        return _setup_error_app([
+            f"Could not connect to the database ({type(e).__name__}: {first_line}). "
+            "Check DATABASE_URL in Vercel → Settings → Environment Variables, then redeploy."
+        ])
 
     @app.context_processor
     def inject_globals():

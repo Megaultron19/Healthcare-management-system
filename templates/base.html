@@ -19,10 +19,15 @@
     {% set ep = request.endpoint or '' %}
     <nav class="nav">
       <a href="{{ url_for('dashboard.index') }}" class="{{ 'active' if ep.startswith('dashboard') }}">{{ icon('home') }} Dashboard</a>
-      <a href="{{ url_for('patients.index') }}" class="{{ 'active' if ep.startswith('patients') or ep in ['records.new_record','records.edit_record','records.new_prescription','records.edit_prescription'] }}">{{ icon('users') }} Patients</a>
-      <a href="{{ url_for('appointments.index') }}" class="{{ 'active' if ep.startswith('appointments') }}">{{ icon('calendar') }} Appointments</a>
+      {% set my = 'My ' if current_user.is_doctor else '' %}
+      <a href="{{ url_for('patients.index') }}" class="{{ 'active' if ep.startswith('patients') or ep in ['records.new_record','records.edit_record','records.new_prescription','records.edit_prescription'] }}">{{ icon('users') }} {{ my }}{{ 'patients' if my else 'Patients' }}</a>
+      <a href="{{ url_for('appointments.index') }}" class="{{ 'active' if ep.startswith('appointments') }}">{{ icon('calendar') }} {{ my }}{{ 'appointments' if my else 'Appointments' }}</a>
+      {% if current_user.is_doctor %}
+      {% if current_user.doctor_id %}<a href="{{ url_for('doctors.detail', doctor_id=current_user.doctor_id) }}" class="{{ 'active' if ep.startswith('doctors') }}">{{ icon('stethoscope') }} My profile</a>{% endif %}
+      {% else %}
       <a href="{{ url_for('doctors.index') }}" class="{{ 'active' if ep.startswith('doctors') }}">{{ icon('stethoscope') }} Doctors</a>
-      <a href="{{ url_for('records.prescriptions') }}" class="{{ 'active' if ep == 'records.prescriptions' }}">{{ icon('pill') }} Prescriptions</a>
+      {% endif %}
+      <a href="{{ url_for('records.prescriptions') }}" class="{{ 'active' if ep == 'records.prescriptions' }}">{{ icon('pill') }} {{ my }}{{ 'prescriptions' if my else 'Prescriptions' }}</a>
       {% if current_user.is_admin %}
       <div class="nav-label">Administration</div>
       <a href="{{ url_for('auth.users') }}" class="{{ 'active' if ep in ['auth.users','auth.new_user','auth.edit_user'] }}">{{ icon('shield') }} Users</a>
@@ -33,7 +38,7 @@
         <span class="avatar">{{ current_user.name[:1] | upper }}</span>
         <div>
           <strong>{{ current_user.name }}</strong>
-          <small>{{ current_user.role | title }}</small>
+          <small>{{ current_user.doctor.specialization if current_user.is_doctor and current_user.doctor else current_user.role | title }}</small>
         </div>
       </div>
       <a href="{{ url_for('auth.change_password') }}" class="link-muted">Change password</a>

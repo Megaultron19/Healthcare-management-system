@@ -12,6 +12,7 @@ from wtforms import (
 )
 from wtforms.validators import Email, EqualTo, InputRequired, Length, NumberRange, Optional, ValidationError
 
+from .access import scope_doctor, scope_patients
 from .extensions import db
 from .utils import local_today
 from .models import (
@@ -26,15 +27,21 @@ from .models import (
 
 
 def doctor_choices(include_id=None):
-    """Active doctors, plus the currently assigned one when editing an old record."""
-    query = db.select(Doctor).order_by(Doctor.last_name, Doctor.first_name)
+    """Active doctors, plus the currently assigned one when editing an old record.
+    A doctor account can only pick themselves."""
+    query = scope_doctor(db.select(Doctor), Doctor.id).order_by(Doctor.last_name, Doctor.first_name)
     doctors = [d for d in db.session.scalars(query) if d.active or d.id == include_id]
     return [(d.id, f"{d.full_name} — {d.specialization}") for d in doctors]
 
 
 def patient_choices():
-    query = db.select(Patient).order_by(Patient.last_name, Patient.first_name)
+    query = scope_patients(db.select(Patient), Patient.id).order_by(Patient.last_name, Patient.first_name)
     return [(p.id, f"{p.full_name} (#{p.id})") for p in db.session.scalars(query)]
+
+
+def doctor_link_choices():
+    query = db.select(Doctor).order_by(Doctor.last_name, Doctor.first_name)
+    return [(0, "— Not a doctor —")] + [(d.id, f"{d.full_name} — {d.specialization}") for d in db.session.scalars(query)]
 
 
 def _choices(values, blank=None):
@@ -59,6 +66,13 @@ class UserForm(FlaskForm):
     name = StringField("Name", validators=[InputRequired(), Length(max=100)])
     email = EmailField("Email", validators=[InputRequired(), Email(), Length(max=120)])
     role = SelectField("Role", choices=[(r, r.title()) for r in ROLES])
+    doctor_id = SelectField(
+        "Doctor profile",
+        coerce=int,
+        default=0,
+        validate_choice=False,  # checked in the view, so a missing value just means "not a doctor"
+        description="Required for the Doctor role: this login will only see that doctor's patients.",
+    )
     active = BooleanField("Account active", default=True)
     password = PasswordField(
         "Password", validators=[Optional(), Length(min=8, max=128)], description="Leave blank to keep the current password."

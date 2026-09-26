@@ -9,7 +9,7 @@ GENDERS = ["Male", "Female", "Other"]
 BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 APPOINTMENT_STATUSES = ["Scheduled", "Completed", "Cancelled", "No-Show"]
 PRESCRIPTION_STATUSES = ["Active", "Completed", "Discontinued"]
-ROLES = ["admin", "staff"]
+ROLES = ["admin", "staff", "doctor"]
 
 
 def _utcnow():
@@ -29,6 +29,10 @@ class User(UserMixin, TimestampMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="staff")
     active = db.Column(db.Boolean, nullable=False, default=True)
+    # Set only for role "doctor": the doctor profile this login belongs to.
+    doctor_id = db.Column(db.Integer, db.ForeignKey("doctors.id"), unique=True, index=True)
+
+    doctor = db.relationship("Doctor", back_populates="user")
 
     @property
     def is_active(self):
@@ -37,6 +41,10 @@ class User(UserMixin, TimestampMixin, db.Model):
     @property
     def is_admin(self):
         return self.role == "admin"
+
+    @property
+    def is_doctor(self):
+        return self.role == "doctor"
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -61,6 +69,7 @@ class Doctor(TimestampMixin, db.Model):
     email = db.Column(db.String(120), unique=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
+    user = db.relationship("User", back_populates="doctor", uselist=False)
     appointments = db.relationship("Appointment", back_populates="doctor")
     records = db.relationship("MedicalRecord", back_populates="doctor")
     prescriptions = db.relationship("Prescription", back_populates="doctor")

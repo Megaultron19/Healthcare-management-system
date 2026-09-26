@@ -1,6 +1,7 @@
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
+from .access import doctor_scope
 from .extensions import db
 from .forms import DoctorForm
 from .models import Appointment, Doctor, MedicalRecord, Prescription
@@ -23,6 +24,8 @@ def _email_taken(email, exclude_id=None):
 @bp.route("/")
 @login_required
 def index():
+    if doctor_scope() is not None:
+        return redirect(url_for("doctors.detail", doctor_id=doctor_scope()))
     q = request.args.get("q", "").strip()
     query = db.select(Doctor).order_by(Doctor.active.desc(), Doctor.last_name, Doctor.first_name)
     if q:
@@ -42,6 +45,8 @@ def index():
 @bp.route("/<int:doctor_id>")
 @login_required
 def detail(doctor_id):
+    if doctor_scope() not in (None, doctor_id):
+        abort(404)
     doctor = get_doctor(doctor_id)
     upcoming = db.session.scalars(
         db.select(Appointment)
@@ -104,6 +109,9 @@ def delete(doctor_id):
         db.session.scalar(db.select(db.func.count(model.id)).filter_by(doctor_id=doctor.id))
         for model in (Appointment, MedicalRecord, Prescription)
     )
+    if doctor.user:
+        flash(f"{doctor.full_name} has a login ({doctor.user.email}). Change or remove it under Users first.", "error")
+        return redirect(url_for("doctors.detail", doctor_id=doctor.id))
     if linked:
         flash(
             f"{doctor.full_name} has {linked} linked appointment(s) or record(s) and can't be deleted. "

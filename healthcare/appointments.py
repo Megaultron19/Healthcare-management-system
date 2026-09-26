@@ -3,6 +3,7 @@ from datetime import date
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
+from .access import ensure_own, scope_doctor
 from .extensions import db
 from .forms import AppointmentForm, doctor_choices, patient_choices
 from .models import APPOINTMENT_STATUSES, Appointment, Doctor, Patient
@@ -12,7 +13,9 @@ bp = Blueprint("appointments", __name__, url_prefix="/appointments")
 
 
 def get_appointment(appointment_id):
-    return db.session.get(Appointment, appointment_id) or abort(404)
+    appointment = db.session.get(Appointment, appointment_id) or abort(404)
+    ensure_own(appointment)
+    return appointment
 
 
 def _parse_date(value):
@@ -53,7 +56,7 @@ def index():
     doctor_id = request.args.get("doctor_id", type=int)
     q = request.args.get("q", "").strip()
 
-    query = db.select(Appointment).join(Appointment.patient).join(Appointment.doctor)
+    query = scope_doctor(db.select(Appointment), Appointment.doctor_id).join(Appointment.patient).join(Appointment.doctor)
     if day:
         query = query.filter(Appointment.date == day)
     if status in APPOINTMENT_STATUSES:
@@ -72,7 +75,7 @@ def index():
         )
     query = query.order_by(Appointment.date.desc(), Appointment.time.desc())
     page = db.paginate(query, per_page=current_app.config["PER_PAGE"], error_out=False)
-    doctors = db.session.scalars(db.select(Doctor).order_by(Doctor.last_name, Doctor.first_name)).all()
+    doctors = db.session.scalars(scope_doctor(db.select(Doctor), Doctor.id).order_by(Doctor.last_name, Doctor.first_name)).all()
     return render_template(
         "appointments/list.html",
         page=page,

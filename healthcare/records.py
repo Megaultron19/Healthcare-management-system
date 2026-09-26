@@ -2,6 +2,7 @@
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required
 
+from .access import ensure_own, scope_doctor
 from .extensions import db
 from .forms import MedicalRecordForm, PrescriptionForm, doctor_choices
 from .models import PRESCRIPTION_STATUSES, MedicalRecord, Patient, Prescription
@@ -45,6 +46,7 @@ def new_record(patient_id):
 @login_required
 def edit_record(record_id):
     record = db.session.get(MedicalRecord, record_id) or abort(404)
+    ensure_own(record)
     form = MedicalRecordForm(obj=record)
     form.doctor_id.choices = doctor_choices(include_id=record.doctor_id)
     if form.validate_on_submit():
@@ -79,7 +81,7 @@ def delete_record(record_id):
 def prescriptions():
     status = request.args.get("status", "")
     q = request.args.get("q", "").strip()
-    query = db.select(Prescription).join(Prescription.patient)
+    query = scope_doctor(db.select(Prescription), Prescription.doctor_id).join(Prescription.patient)
     if status in PRESCRIPTION_STATUSES:
         query = query.filter(Prescription.status == status)
     if q:
@@ -109,6 +111,8 @@ def new_prescription(patient_id):
     record = db.session.get(MedicalRecord, record_id) if record_id else None
     if record and record.patient_id != patient.id:
         abort(400)
+    if record:
+        ensure_own(record)
     if request.method == "GET":
         form.prescribed_on.data = record.visit_date if record else local_today()
         if record:
@@ -136,6 +140,7 @@ def new_prescription(patient_id):
 @login_required
 def edit_prescription(prescription_id):
     prescription = db.session.get(Prescription, prescription_id) or abort(404)
+    ensure_own(prescription)
     form = PrescriptionForm(obj=prescription)
     form.doctor_id.choices = doctor_choices(include_id=prescription.doctor_id)
     if form.validate_on_submit():
